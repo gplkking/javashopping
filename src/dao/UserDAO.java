@@ -1,60 +1,71 @@
 package dao;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
 import db.DBUtil;
 import model.User;
 
+import java.sql.*;
+
 public class UserDAO {
 
-    // 로그인 처리: username과 password로 사용자 정보 조회
-    public User login(String username, String password) {
-        String sql = "SELECT * FROM user WHERE username = ? AND password = ?";
+    public boolean register(User user) {
+        String sql = "INSERT INTO user (username, password, name, role) VALUES (?, ?, ?, 'USER')";
         try (Connection conn = DBUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-
-            pstmt.setString(1, username);
-            pstmt.setString(2, password);
-            ResultSet rs = pstmt.executeQuery();
-
-            if (rs.next()) {
-                // DB에서 읽은 데이터 → User 객체로 변환
-                User user = new User();
-                user.setId(rs.getInt("id"));
-                user.setUsername(rs.getString("username"));
-                user.setPassword(rs.getString("password"));
-                user.setName(rs.getString("name"));
-                user.setRole(rs.getString("role"));
-                return user;
-            }
-
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return null; // 로그인 실패
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, user.getUsername());
+            ps.setString(2, user.getPassword());
+            ps.setString(3, user.getName());
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) { e.printStackTrace(); }
+        return false;
     }
 
-    // 회원가입 처리: 사용자 정보 DB에 저장
-    public boolean register(User user) {
-        String sql = "INSERT INTO user (username, password, name, role) VALUES (?, ?, ?, ?)";
+    public User login(String username, String password) {
+        String sql = "SELECT * FROM user WHERE username=? AND password=?";
         try (Connection conn = DBUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, username);
+            ps.setString(2, password);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new User(
+                        rs.getInt("id"),
+                        rs.getString("username"),
+                        rs.getString("password"),
+                        rs.getString("name"),
+                        rs.getString("role")
+                    );
+                }
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return null;
+    }
 
-            pstmt.setString(1, user.getUsername());
-            pstmt.setString(2, user.getPassword());
-            pstmt.setString(3, user.getName());
-            pstmt.setString(4, user.getRole());
-            int rows = pstmt.executeUpdate();
-            return rows > 0; // 성공 여부 반환
+    public java.util.List<User> getAllUsers() {
+        java.util.List<User> list = new java.util.ArrayList<>();
+        String sql = "SELECT * FROM user";
+        try (Connection conn = DBUtil.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                list.add(new User(
+                    rs.getInt("id"),
+                    rs.getString("username"),
+                    rs.getString("password"),
+                    rs.getString("name"),
+                    rs.getString("role")
+                ));
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return list;
+    }
 
-        } catch (SQLException e) {
-            System.err.println("SQL 에러: " + e.getMessage());
-            e.printStackTrace();
-        }
-
-        return false; // 실패
+    public boolean deleteUser(int id) {
+        String sql = "DELETE FROM user WHERE id=?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) { e.printStackTrace(); }
+        return false;
     }
 }
