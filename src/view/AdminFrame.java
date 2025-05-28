@@ -8,6 +8,7 @@ import dao.OrderDAO;
 import model.User;
 import model.Product;
 import model.Order;
+import util.Session;
 
 import java.awt.*;
 import java.util.List;
@@ -17,28 +18,28 @@ public class AdminFrame extends JFrame {
     private UserDAO userDAO = new UserDAO();
     private ProductDAO productDAO = new ProductDAO();
     private OrderDAO orderDAO = new OrderDAO();
-    private JTable productTable;
-    private DefaultTableModel productTableModel;
-    private JScrollPane productScrollPane;
-    private JScrollPane taScrollPane;
-    private JTextArea taDisplay;
-    private String currentUserName;
+    private JTable table;
+    private JScrollPane scrollPane;
+    private DefaultTableModel model;
+    private JLabel lblTotalSales; // 통계용 라벨
 
-    public AdminFrame(String username) {
-        this.currentUserName = username;
+    public AdminFrame() {
+        User currentUser = Session.getCurrentUser();
 
-        setTitle("관리자 페이지");
+        if (currentUser == null || !"ADMIN".equalsIgnoreCase(currentUser.getRole())) {
+            JOptionPane.showMessageDialog(null, "관리자만 접근 가능합니다.");
+            dispose();
+            return;
+        }
+
+        setTitle("관리자 페이지 - " + currentUser.getName() + "님");
         setSize(900, 600);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
-        taDisplay = new JTextArea();
-        taScrollPane = new JScrollPane(taDisplay);
-        add(taScrollPane, BorderLayout.CENTER);
-
         JPanel panel = new JPanel(new GridLayout(2, 5));
-        JLabel lblUser = new JLabel("사용자: " + currentUserName+"님");
+        JLabel lblUser = new JLabel("사용자: " + currentUser.getName() + " (" + currentUser.getRole() + ")");
         JButton btnUsers = new JButton("회원목록");
         JButton btnProducts = new JButton("상품목록");
         JButton btnAddProduct = new JButton("상품 추가");
@@ -46,7 +47,7 @@ public class AdminFrame extends JFrame {
         JButton btnOrders = new JButton("주문목록");
         JButton btnUpdateStatus = new JButton("주문 상태 변경");
         JButton btnStats = new JButton("통계");
-        JButton btnBack = new JButton("돌아가기");
+        JButton btnBack = new JButton("로그아웃");
 
         btnUsers.addActionListener(e -> showUsers());
         btnProducts.addActionListener(e -> showProducts());
@@ -68,44 +69,73 @@ public class AdminFrame extends JFrame {
         panel.add(btnBack);
 
         add(panel, BorderLayout.NORTH);
+
+        lblTotalSales = new JLabel("총 매출: 0원");
+        lblTotalSales.setHorizontalAlignment(SwingConstants.RIGHT);
+        add(lblTotalSales, BorderLayout.SOUTH);
+
         setVisible(true);
     }
 
     private void showUsers() {
-        if (productScrollPane != null) remove(productScrollPane);
-        add(taScrollPane, BorderLayout.CENTER);
-        taDisplay.setText("회원 목록:\n");
         List<User> list = userDAO.getAllUsers();
+        model = new DefaultTableModel(new Object[]{"ID", "아이디", "이름", "권한"}, 0);
         for (User u : list) {
-            taDisplay.append(u.getId() + " / " + u.getUsername() + " / " + u.getName() + " / " + u.getRole() + "\n");
+            model.addRow(new Object[]{u.getId(), u.getUsername(), u.getName(), u.getRole()});
         }
-        revalidate();
-        repaint();
+        updateTable(model);
+        lblTotalSales.setText(""); // 총 매출 숨기기
     }
 
     private void showProducts() {
         List<Product> list = productDAO.getAllProducts();
-        productTableModel = new DefaultTableModel(new Object[]{"ID", "상품명", "가격", "재고", "설명"}, 0) {
+        model = new DefaultTableModel(new Object[]{"ID", "상품명", "가격", "재고", "설명"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column != 0; // ID만 수정 불가
+                return column != 0; // ID 수정 불가
             }
         };
-
         for (Product p : list) {
-            productTableModel.addRow(new Object[]{
-                p.getId(), p.getName(), p.getPrice(), p.getStock(), p.getDescription()
-            });
+            model.addRow(new Object[]{p.getId(), p.getName(), p.getPrice(), p.getStock(), p.getDescription()});
         }
+        updateTable(model);
+        lblTotalSales.setText(""); // 총 매출 숨기기
+    }
 
-        productTable = new JTable(productTableModel);
+    private void showOrders() {
+        List<Order> list = orderDAO.getAllOrders();
+        model = new DefaultTableModel(new Object[]{"주문ID", "주문자", "상품명", "수량", "총액", "상태"}, 0);
+        for (Order o : list) {
+            User user = userDAO.getUserById(o.getUserId());
+            Product product = productDAO.getProductById(o.getProductId());
+            String userName = (user != null) ? user.getName() : "알 수 없음";
+            String productName = (product != null) ? product.getName() : "알 수 없음";
+            model.addRow(new Object[]{o.getId(), userName, productName, o.getQuantity(), o.getTotalPrice(), o.getStatus()});
+        }
+        updateTable(model);
+        lblTotalSales.setText(""); // 총 매출 숨기기
+    }
 
-        if (productScrollPane != null) remove(productScrollPane);
-        remove(taScrollPane);
+    private void showStats() {
+        model = new DefaultTableModel(new Object[]{"상품명", "판매 수량", "판매 금액"}, 0);
+        int totalSales = orderDAO.getTotalSales();
+        Map<Integer, Integer> productSales = orderDAO.getProductSales();
+        for (Map.Entry<Integer, Integer> entry : productSales.entrySet()) {
+            Product p = productDAO.getProductById(entry.getKey());
+            String name = (p != null) ? p.getName() : "알 수 없음";
+            int qty = entry.getValue();
+            int price = (p != null) ? p.getPrice() * qty : 0;
+            model.addRow(new Object[]{name, qty, price});
+        }
+        updateTable(model);
+        lblTotalSales.setText("총 매출: " + totalSales + "원");
+    }
 
-        productScrollPane = new JScrollPane(productTable);
-        add(productScrollPane, BorderLayout.CENTER);
-
+    private void updateTable(DefaultTableModel model) {
+        if (scrollPane != null) remove(scrollPane);
+        table = new JTable(model);
+        scrollPane = new JScrollPane(table);
+        add(scrollPane, BorderLayout.CENTER);
         revalidate();
         repaint();
     }
@@ -136,7 +166,7 @@ public class AdminFrame extends JFrame {
 
             if (productDAO.addProduct(name, price, desc, stock)) {
                 JOptionPane.showMessageDialog(this, "상품 추가 성공!");
-                showProducts(); // 추가 후 갱신
+                showProducts();
             } else {
                 JOptionPane.showMessageDialog(this, "상품 추가 실패!");
             }
@@ -144,48 +174,20 @@ public class AdminFrame extends JFrame {
     }
 
     private void saveProductChanges() {
-        if (productTableModel == null) {
+        if (model == null) {
             JOptionPane.showMessageDialog(this, "상품 목록을 먼저 조회해주세요.");
             return;
         }
 
-        for (int i = 0; i < productTableModel.getRowCount(); i++) {
-            int id = (int) productTableModel.getValueAt(i, 0);
-            String name = (String) productTableModel.getValueAt(i, 1);
-            int price = Integer.parseInt(productTableModel.getValueAt(i, 2).toString());
-            int stock = Integer.parseInt(productTableModel.getValueAt(i, 3).toString());
-            String desc = (String) productTableModel.getValueAt(i, 4);
-
+        for (int i = 0; i < model.getRowCount(); i++) {
+            int id = (int) model.getValueAt(i, 0);
+            String name = (String) model.getValueAt(i, 1);
+            int price = Integer.parseInt(model.getValueAt(i, 2).toString());
+            int stock = Integer.parseInt(model.getValueAt(i, 3).toString());
+            String desc = (String) model.getValueAt(i, 4);
             productDAO.updateProductFull(id, name, price, stock, desc);
         }
         JOptionPane.showMessageDialog(this, "변경 내용 저장 완료!");
-    }
-
-    private void showOrders() {
-        if (productScrollPane != null) remove(productScrollPane);
-        add(taScrollPane, BorderLayout.CENTER);
-        taDisplay.setText("주문 목록:\n");
-        List<Order> list = orderDAO.getOrdersByUser(0);
-        for (Order o : list) {
-            taDisplay.append(o.getId() + " / " + o.getOrderDate() + " / " + o.getProductId() + " / " + o.getQuantity() + " / " + o.getTotalPrice() + " / " + o.getStatus() + "\n");
-        }
-        revalidate();
-        repaint();
-    }
-
-    private void showStats() {
-        if (productScrollPane != null) remove(productScrollPane);
-        add(taScrollPane, BorderLayout.CENTER);
-        int totalSales = orderDAO.getTotalSales();
-        Map<Integer, Integer> productSales = orderDAO.getProductSales();
-        taDisplay.setText("총 매출: " + totalSales + "원\n\n상품별 판매량:\n");
-        for (Map.Entry<Integer, Integer> entry : productSales.entrySet()) {
-            Product p = productDAO.getProductById(entry.getKey());
-            String name = (p != null) ? p.getName() : "알 수 없음";
-            taDisplay.append("상품: " + name + " → 판매량: " + entry.getValue() + "\n");
-        }
-        revalidate();
-        repaint();
     }
 
     private void updateOrderStatus() {
@@ -199,7 +201,7 @@ public class AdminFrame extends JFrame {
         int orderId = Integer.parseInt(idStr);
         if (orderDAO.updateOrderStatus(orderId, status)) {
             if ("취소완료".equals(status)) {
-                Order o = orderDAO.getOrdersByUser(0).stream().filter(order -> order.getId() == orderId).findFirst().orElse(null);
+                Order o = orderDAO.getAllOrders().stream().filter(order -> order.getId() == orderId).findFirst().orElse(null);
                 if (o != null) {
                     productDAO.updateStock(o.getProductId(), o.getQuantity());
                 }
@@ -212,6 +214,7 @@ public class AdminFrame extends JFrame {
     }
 
     private void backToHome() {
+    	Session.setCurrentUser(null); 
         dispose();
         new view.HomeFrame();
     }

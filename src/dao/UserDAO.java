@@ -4,6 +4,8 @@ import db.DBUtil;
 import model.User;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class UserDAO {
 
@@ -40,8 +42,8 @@ public class UserDAO {
         return null;
     }
 
-    public java.util.List<User> getAllUsers() {
-        java.util.List<User> list = new java.util.ArrayList<>();
+    public List<User> getAllUsers() {
+        List<User> list = new ArrayList<>();
         String sql = "SELECT * FROM user";
         try (Connection conn = DBUtil.getConnection();
              Statement stmt = conn.createStatement();
@@ -57,6 +59,26 @@ public class UserDAO {
             }
         } catch (SQLException e) { e.printStackTrace(); }
         return list;
+    }
+
+    public User getUserById(int id) {
+        String sql = "SELECT * FROM user WHERE id = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new User(
+                        rs.getInt("id"),
+                        rs.getString("username"),
+                        rs.getString("password"),
+                        rs.getString("name"),
+                        rs.getString("role")
+                    );
+                }
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return null;
     }
 
     public boolean deleteUser(int id) {

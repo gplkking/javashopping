@@ -10,6 +10,7 @@ import util.Session;
 
 import java.awt.*;
 import java.util.List;
+import java.util.ArrayList;
 
 public class CartFrame extends JFrame {
     private OrderDAO orderDAO = new OrderDAO();
@@ -80,6 +81,16 @@ public class CartFrame extends JFrame {
 
     private void adjustQuantity(int change) {
         List<Order> list = orderDAO.getOrdersByUser(Session.getCurrentUser().getId());
+
+        // 선택된 항목 임시 저장
+        List<String> selectedProducts = new ArrayList<>();
+        for (int i = 0; i < model.getRowCount(); i++) {
+            if ((Boolean) model.getValueAt(i, 0)) {
+                selectedProducts.add((String) model.getValueAt(i, 1));
+            }
+        }
+
+        // 수량 조정
         for (int i = 0; i < model.getRowCount(); i++) {
             if ((Boolean) model.getValueAt(i, 0)) {
                 String productName = (String) model.getValueAt(i, 1);
@@ -92,18 +103,34 @@ public class CartFrame extends JFrame {
                 if (o == null) continue;
 
                 int newQty = o.getQuantity() + change;
-                if (newQty < 1) newQty = 1;
+                if (newQty < 1) {
+                    JOptionPane.showMessageDialog(this, "수량은 1개 이상이어야 합니다.", "알림", JOptionPane.WARNING_MESSAGE);
+                    continue;
+                }
                 if (newQty > stock) {
                     JOptionPane.showMessageDialog(this, "재고 부족! 최대 " + stock + "개까지만 주문 가능.");
                     newQty = stock;
                 }
 
-                if (orderDAO.updateOrderQuantity(o.getId(), newQty)) {
-                    JOptionPane.showMessageDialog(this, "수량 업데이트 완료!");
-                }
+                // 메시지 제거: 수량만 업데이트
+                orderDAO.updateOrderQuantity(o.getId(), newQty);
             }
         }
-        loadCart();
+
+        // 선택 상태 유지하면서 장바구니 새로 로드
+        model.setRowCount(0);
+        int total = 0;
+        list = orderDAO.getOrdersByUser(Session.getCurrentUser().getId());
+        for (Order o : list) {
+            if ("CART".equals(o.getStatus())) {
+                Product p = productDAO.getProductById(o.getProductId());
+                String productName = (p != null) ? p.getName() : "알 수 없음";
+                boolean selected = selectedProducts.contains(productName);
+                model.addRow(new Object[]{selected, productName, o.getQuantity(), o.getTotalPrice()});
+                total += o.getTotalPrice();
+            }
+        }
+        lblTotal.setText("총액: " + total + "원");
     }
 
     private void deleteSelected() {

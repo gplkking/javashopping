@@ -9,7 +9,6 @@ import model.Order;
 import util.Session;
 
 import java.awt.*;
-import java.util.List;
 
 public class MainFrame extends JFrame {
     private ProductDAO productDAO = new ProductDAO();
@@ -18,9 +17,15 @@ public class MainFrame extends JFrame {
     private JTable table;
     private JTextField tfSearch;
     private String currentUserName;
+    private boolean isLoggedIn;
+
+    public MainFrame() {
+        this(Session.getCurrentUser() != null ? Session.getCurrentUser().getName() : "비로그인 사용자");
+    }
 
     public MainFrame(String username) {
         this.currentUserName = username;
+        this.isLoggedIn = Session.getCurrentUser() != null;
 
         setTitle("메인 화면");
         setSize(700, 500);
@@ -28,15 +33,29 @@ public class MainFrame extends JFrame {
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
-        // 상단 패널: 사용자 이름, 검색, 버튼들
+        // 상단 패널
         JPanel panel = new JPanel();
-        JLabel lblUser = new JLabel("사용자: " + currentUserName);
+        JLabel lblUser;
+
+        if (currentUserName == null || "비로그인 사용자".equals(currentUserName)) {
+            lblUser = new JLabel("비로그인 사용자");
+        } else {
+            lblUser = new JLabel("사용자: " + currentUserName);
+        }
+
         tfSearch = new JTextField(10);
         JButton btnSearch = new JButton("검색");
         JButton btnAddToCart = new JButton("장바구니에 추가");
         JButton btnCart = new JButton("장바구니 보기");
         JButton btnOrders = new JButton("주문 내역");
-        JButton btnLogout = new JButton("로그아웃");
+
+        // 로그인 여부에 따라 "로그아웃" 또는 "돌아가기"
+        JButton btnBack;
+        if (isLoggedIn) {
+            btnBack = new JButton("로그아웃");
+        } else {
+            btnBack = new JButton("돌아가기");
+        }
 
         panel.add(lblUser);
         panel.add(tfSearch);
@@ -44,13 +63,13 @@ public class MainFrame extends JFrame {
         panel.add(btnAddToCart);
         panel.add(btnCart);
         panel.add(btnOrders);
-        panel.add(btnLogout);
+        panel.add(btnBack);
         add(panel, BorderLayout.NORTH);
 
         model = new DefaultTableModel(new Object[]{"ID", "상품명", "가격", "재고"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return false; // 사용자 데이터 수정 불가
+                return false;
             }
         };
         table = new JTable(model);
@@ -58,10 +77,36 @@ public class MainFrame extends JFrame {
 
         // 버튼 동작
         btnSearch.addActionListener(e -> loadProducts(tfSearch.getText()));
-        btnAddToCart.addActionListener(e -> addToCart());
-        btnCart.addActionListener(e -> new CartFrame());
-        btnOrders.addActionListener(e -> new OrderFrame());
-        btnLogout.addActionListener(e -> logout());
+
+        btnAddToCart.addActionListener(e -> {
+            if (!isLoggedIn) {
+                JOptionPane.showMessageDialog(this, "로그인이 필요합니다.");
+                return;
+            }
+            addToCart();
+        });
+
+        btnCart.addActionListener(e -> {
+            if (!isLoggedIn) {
+                JOptionPane.showMessageDialog(this, "로그인이 필요합니다.");
+                return;
+            }
+            new CartFrame();
+        });
+
+        btnOrders.addActionListener(e -> {
+            if (!isLoggedIn) {
+                JOptionPane.showMessageDialog(this, "로그인이 필요합니다.");
+                return;
+            }
+            new OrderFrame();
+        });
+
+        btnBack.addActionListener(e -> {
+            Session.setCurrentUser(null); // 로그아웃 처리
+            dispose();
+            new HomeFrame();
+        });
 
         loadProducts(null);
         setVisible(true);
@@ -93,11 +138,5 @@ public class MainFrame extends JFrame {
         } else {
             JOptionPane.showMessageDialog(this, "실패!");
         }
-    }
-
-    private void logout() {
-        Session.logout();
-        dispose();
-        new HomeFrame();
     }
 }

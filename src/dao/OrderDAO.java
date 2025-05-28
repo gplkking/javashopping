@@ -45,6 +45,11 @@ public class OrderDAO {
         return list;
     }
 
+    // ✅ 전체 주문 조회 (AdminFrame용)
+    public List<Order> getAllOrders() {
+        return getOrdersByUser(0);
+    }
+
     public boolean updateOrderQuantity(int orderId, int quantity) {
         String sql = "UPDATE orders SET quantity=?, total_price=(SELECT price * ? FROM product WHERE id=orders.product_id) WHERE id=?";
         try (Connection conn = DBUtil.getConnection();

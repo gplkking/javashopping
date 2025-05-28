@@ -48,6 +48,38 @@ public class ProductDAO {
         return null;
     }
 
+    // 🔥 추가: 상품명으로 검색
+    public Product getProductByName(String name) {
+        String sql = "SELECT * FROM product WHERE name = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, name);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new Product(
+                            rs.getInt("id"),
+                            rs.getString("name"),
+                            rs.getInt("price"),
+                            rs.getString("description"),
+                            rs.getInt("stock")
+                    );
+                }
+            }
+        } catch (SQLException e) { e.printStackTrace(); }
+        return null;
+    }
+
+    // 🔥 추가: 상품 삭제
+    public boolean deleteProduct(int id) {
+        String sql = "DELETE FROM product WHERE id = ?";
+        try (Connection conn = DBUtil.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) { e.printStackTrace(); }
+        return false;
+    }
+
     public boolean updateProduct(int id, String name, int price, int stock) {
         String sql = "UPDATE product SET name=?, price=?, stock=? WHERE id=?";
         try (Connection conn = DBUtil.getConnection();
